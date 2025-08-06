@@ -1,42 +1,43 @@
 import argparse
 import sys
-from urllib.parse import urlparse
+
+import asyncio
 from app.plugins import platform_plugins
 from app.core.summarizer import summarize_text
 from app.core.utils import create_markdown_note
+import app.util as util
 
-def get_platform_from_url(video_url: str):
-    """
-    Determines the platform from the video URL.
-    """
-    parsed_url = urlparse(video_url)
-    domain = parsed_url.netloc.lower()
 
-    if 'youtube.com' in domain or 'youtu.be' in domain:
-        return 'youtube'
-    elif 'tiktok.com' in domain:
-        return 'tiktok'
-    elif 'x.com' in domain or 'twitter.com' in domain:
-        return 'x'
+async def get_platform(video_url: str):
+    """
+    Finds the appropriate platform for the given video URL.
+    """
+    for plugin in platform_plugins.values():
+        if hasattr(plugin, "initialize") and not getattr(plugin, "initialized", False):
+            await plugin.initialize()
+            plugin.initialized = True
+        if await plugin.can_handle_url(video_url):
+
+            return plugin
     return None
 
-def main():
+
+async def main():
+    util.init_logging()
     parser = argparse.ArgumentParser(description="Video Summarizer")
     parser.add_argument("video_url", help="The URL of the video to summarize.")
     args = parser.parse_args()
 
     video_url = args.video_url
-    platform_name = get_platform_from_url(video_url)
+    platform = await get_platform(video_url)
 
-    if not platform_name or platform_name not in platform_plugins:
+    if not platform:
         print(f"Error: Platform not supported for URL: {video_url}")
         sys.exit(1)
 
-    platform = platform_plugins[platform_name]
-
     try:
-        title = platform.get_video_title(video_url)
-        transcription = platform.get_transcription(video_url)
+        title = await platform.get_video_title(video_url)
+        transcription = await platform.get_transcription(video_url)
         summary = summarize_text(transcription)
         note_path = create_markdown_note(title, summary)
         print(f"Successfully created note: {note_path}")
@@ -44,5 +45,11 @@ def main():
         print(f"An error occurred: {e}")
         sys.exit(1)
 
+
 if __name__ == "__main__":
-    main()
+    # When running with `python -m app.main`, if no URL is provided on the
+    # command line, this block adds a default one for testing purposes.
+    if len(sys.argv) == 1:
+        sys.argv.append("https://www.tiktok.com/@maklelan/video/7355850487834545454")
+
+    asyncio.run(main())

@@ -1,1 +1,8 @@
-# Add any Python dependencies here
+tiktokapipy
+pydantic
+openai-whisper
+moviepy
+numpy<2
+aiohttp
+yt-dlp
+google-genai

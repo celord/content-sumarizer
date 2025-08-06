@@ -1,5 +1,6 @@
 from .base_platform import BasePlatform
 
+
 class X(BasePlatform):
     """
     Provides transcription services for X (formerly Twitter) videos.
@@ -22,3 +23,9 @@ class X(BasePlatform):
         # TODO: Implement X title retrieval logic
         print(f"Fetching title for X video: {video_url}")
         return "Placeholder X Video Title"
+
+    def can_handle_url(self, video_url: str) -> bool:
+        """
+        Determines if the platform can handle the given video URL.
+        """
+        return "twitter.com" in video_url or "x.com" in video_url

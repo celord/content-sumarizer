@@ -1,5 +1,6 @@
 from .base_platform import BasePlatform
 
+
 class YouTube(BasePlatform):
     """
     Provides transcription services for YouTube videos.
@@ -22,3 +23,9 @@ class YouTube(BasePlatform):
         # TODO: Implement YouTube title retrieval logic
         print(f"Fetching title for YouTube video: {video_url}")
         return "Placeholder YouTube Video Title"
+
+    def can_handle_url(self, video_url: str) -> bool:
+        """
+        Determines if the platform can handle the given video URL.
+        """
+        return "youtube.com" in video_url
