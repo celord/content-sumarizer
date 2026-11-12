@@ -41,8 +41,10 @@ def process(url: str, settings: Settings) -> Result:
         transcript,
         meta,
         settings.note_language,
-        client=anthropic.Anthropic(api_key=settings.anthropic_api_key),
+        client=None if settings.llm_base_url else anthropic.Anthropic(api_key=settings.anthropic_api_key),
         model=settings.llm_model,
+        base_url=settings.llm_base_url,
+        api_key=settings.llm_api_key,
     )
     path = write_note(
         vault / settings.note_subfolder, meta, analysis, transcript, date.today()

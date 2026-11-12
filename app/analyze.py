@@ -1,9 +1,16 @@
-"""Analysis: turn a Transcript into an Analysis with Claude (tool use)."""
+"""Analysis: turn a Transcript into an Analysis.
 
+Two providers: Anthropic (tool use, the default) and any OpenAI-compatible
+chat completions API such as OpenRouter or NVIDIA NIM (JSON in the reply text,
+because many free models there do not support tool calls).
+"""
+
+import json
 import os
 import re
 
 import anthropic
+import httpx
 
 from app.analyze_prompt import SYSTEM_PROMPT, USER_TEMPLATE
 from app.models import Analysis, Transcript, VideoMetadata
@@ -51,10 +58,16 @@ def analyze(
     *,
     client: anthropic.Anthropic | None = None,
     model: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    http: httpx.Client | None = None,
 ) -> Analysis:
-    """Analyze a Transcript. Retries once on malformed output, then raises AnalysisError."""
-    client = client or anthropic.Anthropic()
+    """Analyze a Transcript. Retries once on malformed output, then raises AnalysisError.
+
+    With base_url set, calls that OpenAI-compatible API instead of Anthropic.
+    """
     model = model or os.environ.get("LLM_MODEL") or DEFAULT_LLM_MODEL
+    system = SYSTEM_PROMPT.format(language=language)
     user = USER_TEMPLATE.format(
         title=metadata.title,
         author=metadata.author,
@@ -62,25 +75,84 @@ def analyze(
         transcript=transcript.text,
     )
 
+    if base_url:
+        http = http or httpx.Client(timeout=120)
+
+        def call() -> object:
+            return _call_openai_compatible(http, base_url, api_key, model, system, user)
+
+    else:
+        client = client or anthropic.Anthropic()
+
+        def call() -> object:
+            return _call_anthropic(client, model, system, user)
+
     problem = "no response"
     for _ in range(MAX_ATTEMPTS):
-        response = client.messages.create(
-            model=model,
-            max_tokens=2048,
-            system=SYSTEM_PROMPT.format(language=language),
-            messages=[{"role": "user", "content": user}],
-            tools=[TOOL],
-            tool_choice={"type": "tool", "name": TOOL["name"]},
-        )
-        block = next((b for b in response.content if b.type == "tool_use"), None)
-        if block is None:
-            problem = "model returned no tool call"
-            continue
         try:
-            return _parse(block.input, transcript.text)
+            return _parse(call(), transcript.text)
         except ValueError as exc:
             problem = str(exc)
     raise AnalysisError(f"Malformed analysis after {MAX_ATTEMPTS} attempts: {problem}")
+
+
+def _call_anthropic(client: anthropic.Anthropic, model: str, system: str, user: str) -> object:
+    response = client.messages.create(
+        model=model,
+        max_tokens=2048,
+        system=system,
+        messages=[{"role": "user", "content": user}],
+        tools=[TOOL],
+        tool_choice={"type": "tool", "name": TOOL["name"]},
+    )
+    block = next((b for b in response.content if b.type == "tool_use"), None)
+    if block is None:
+        raise ValueError("model returned no tool call")
+    return block.input
+
+
+JSON_INSTRUCTION = (
+    "Reply with only a JSON object, no other text, matching this JSON schema:\n"
+    + json.dumps(TOOL["input_schema"])
+)
+
+
+def _call_openai_compatible(
+    http: httpx.Client,
+    base_url: str,
+    api_key: str | None,
+    model: str,
+    system: str,
+    user: str,
+) -> object:
+    try:
+        response = http.post(
+            base_url.rstrip("/") + "/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+            json={
+                "model": model,
+                "max_tokens": 2048,
+                "messages": [
+                    {"role": "system", "content": system + "\n\n" + JSON_INSTRUCTION},
+                    {"role": "user", "content": user},
+                ],
+            },
+        )
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise AnalysisError(f"LLM request failed: {exc}") from exc
+    try:
+        content = response.json()["choices"][0]["message"]["content"] or ""
+    except (ValueError, KeyError, IndexError, TypeError):
+        raise ValueError("response has no message content") from None
+    # Models often wrap JSON in a code fence or add text around it.
+    start, end = content.find("{"), content.rfind("}")
+    if start == -1 or end < start:
+        raise ValueError("reply holds no JSON object")
+    try:
+        return json.loads(content[start : end + 1])
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"reply is not valid JSON: {exc}") from None
 
 
 def _parse(data: object, transcript_text: str) -> Analysis:

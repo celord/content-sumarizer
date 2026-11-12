@@ -10,7 +10,6 @@ DEFAULT_MAX_DURATION_SECONDS = 900
 REQUIRED_VARS = (
     "TELEGRAM_BOT_TOKEN",
     "ALLOWED_CHAT_IDS",
-    "ANTHROPIC_API_KEY",
     "GROQ_API_KEY",
     "VAULT_PATH",
 )
@@ -24,9 +23,11 @@ class ConfigError(Exception):
 class Settings:
     telegram_bot_token: str
     allowed_chat_ids: frozenset[int]
-    anthropic_api_key: str
+    anthropic_api_key: str | None
     groq_api_key: str
     vault_path: str
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
     llm_model: str = DEFAULT_LLM_MODEL
     note_subfolder: str = DEFAULT_NOTE_SUBFOLDER
     note_language: str = DEFAULT_NOTE_LANGUAGE
@@ -42,6 +43,10 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         return value or None
 
     missing = [name for name in REQUIRED_VARS if get(name) is None]
+    # LLM_BASE_URL switches Analysis to an OpenAI-compatible API (OpenRouter, NVIDIA NIM).
+    llm_key_var = "LLM_API_KEY" if get("LLM_BASE_URL") else "ANTHROPIC_API_KEY"
+    if get(llm_key_var) is None:
+        missing.append(llm_key_var)
     if missing:
         raise ConfigError("Missing required environment variables: " + ", ".join(missing))
 
@@ -51,6 +56,8 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         anthropic_api_key=get("ANTHROPIC_API_KEY"),
         groq_api_key=get("GROQ_API_KEY"),
         vault_path=get("VAULT_PATH"),
+        llm_base_url=get("LLM_BASE_URL"),
+        llm_api_key=get("LLM_API_KEY"),
         llm_model=get("LLM_MODEL") or DEFAULT_LLM_MODEL,
         note_subfolder=get("NOTE_SUBFOLDER") or DEFAULT_NOTE_SUBFOLDER,
         note_language=get("NOTE_LANGUAGE") or DEFAULT_NOTE_LANGUAGE,

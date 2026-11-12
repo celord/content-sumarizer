@@ -72,3 +72,50 @@ def test_malformed_twice_raises(first):
 def test_live_analysis():
     result = analyze(TRANSCRIPT, META, "English")
     assert result.summary_sentence and 3 <= len(result.tags) <= 7
+
+
+def openai_http(*contents):
+    """httpx client that answers chat completions with the given message contents in order."""
+    import httpx
+
+    replies = iter(contents)
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"choices": [{"message": {"content": next(replies)}}]})
+
+    return httpx.Client(transport=httpx.MockTransport(handler)), seen
+
+
+def test_openai_compatible_provider_parses_fenced_json():
+    import json
+
+    http, seen = openai_http("Here you go:\n```json\n" + json.dumps(VALID) + "\n```")
+    result = analyze(
+        TRANSCRIPT, META, "English",
+        model="meta/llama-3.3-70b-instruct", base_url="https://integrate.api.nvidia.com/v1/",
+        api_key="k", http=http,
+    )
+    assert result.tags == ["sleep", "focus", "habits"]
+    request = seen[0]
+    assert str(request.url) == "https://integrate.api.nvidia.com/v1/chat/completions"
+    assert request.headers["authorization"] == "Bearer k"
+    body = json.loads(request.content)
+    assert body["model"] == "meta/llama-3.3-70b-instruct"
+    assert "JSON" in body["messages"][0]["content"]
+
+
+def test_openai_compatible_provider_retries_on_non_json_then_fails():
+    http, seen = openai_http("sorry, no", "still no")
+    with pytest.raises(AnalysisError, match="no JSON"):
+        analyze(TRANSCRIPT, META, "English", model="m", base_url="https://x/v1", api_key="k", http=http)
+    assert len(seen) == 2
+
+
+def test_openai_compatible_provider_http_error_raises_analysis_error():
+    import httpx
+
+    http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(429)))
+    with pytest.raises(AnalysisError, match="request failed"):
+        analyze(TRANSCRIPT, META, "English", model="m", base_url="https://x/v1", api_key="k", http=http)

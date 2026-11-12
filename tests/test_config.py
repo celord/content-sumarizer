@@ -101,3 +101,13 @@ def test_error_message_does_not_leak_secret_values():
         load_settings(env)
 
     assert "sk-ant-secret" not in str(exc.value)
+
+
+def test_openai_compatible_provider_needs_llm_api_key_not_anthropic():
+    env = {**BASE_ENV, "ANTHROPIC_API_KEY": "", "LLM_BASE_URL": "https://openrouter.ai/api/v1"}
+    with pytest.raises(ConfigError, match="LLM_API_KEY"):
+        load_settings(env)
+    settings = load_settings({**env, "LLM_API_KEY": "or-key"})
+    assert settings.llm_base_url == "https://openrouter.ai/api/v1"
+    assert settings.llm_api_key == "or-key"
+    assert settings.anthropic_api_key is None

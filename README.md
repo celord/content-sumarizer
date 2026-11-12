@@ -9,6 +9,8 @@ Telegram bot that turns TikTok links into Obsidian notes. See `GLOSSARY.md` for 
    `https://api.telegram.org/bot<TOKEN>/getUpdates` to read `message.chat.id` (groups have negative ids).
 3. Copy `.env.example` to `.env` and fill in `TELEGRAM_BOT_TOKEN`, `ALLOWED_CHAT_IDS`, `ANTHROPIC_API_KEY`,
    `GROQ_API_KEY` and `VAULT_PATH` (absolute path of your Obsidian Vault).
+   To use a free OpenRouter or NVIDIA NIM model instead of Anthropic, set `LLM_BASE_URL`, `LLM_API_KEY`
+   and `LLM_MODEL` and leave `ANTHROPIC_API_KEY` empty (examples in `.env.example`).
 4. Start it:
 
    ```sh
