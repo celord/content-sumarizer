@@ -1,7 +1,8 @@
-version: '3.8'
-
 services:
   app:
     build: .
+    env_file: .env
+    # Vault is mounted at its host path so VAULT_PATH means the same thing inside the container.
     volumes:
-      - ./app/output:/usr/src/app/app/output
+      - ${VAULT_PATH}:${VAULT_PATH}
+    restart: unless-stopped
