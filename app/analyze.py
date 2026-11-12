@@ -111,6 +111,8 @@ def _call_anthropic(client: anthropic.Anthropic, model: str, system: str, user: 
     return block.input
 
 
+OPENAI_MAX_TOKENS = 8192
+
 JSON_INSTRUCTION = (
     "Reply with only a JSON object, no other text, matching this JSON schema:\n"
     + json.dumps(TOOL["input_schema"])
@@ -131,7 +133,8 @@ def _call_openai_compatible(
             headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
             json={
                 "model": model,
-                "max_tokens": 2048,
+                # Reasoning models spend part of this budget thinking before they answer.
+                "max_tokens": OPENAI_MAX_TOKENS,
                 "messages": [
                     {"role": "system", "content": system + "\n\n" + JSON_INSTRUCTION},
                     {"role": "user", "content": user},
@@ -142,9 +145,12 @@ def _call_openai_compatible(
     except httpx.HTTPError as exc:
         raise AnalysisError(f"LLM request failed: {exc}") from exc
     try:
-        content = response.json()["choices"][0]["message"]["content"] or ""
+        choice = response.json()["choices"][0]
+        content = choice["message"]["content"] or ""
     except (ValueError, KeyError, IndexError, TypeError):
         raise ValueError("response has no message content") from None
+    if choice.get("finish_reason") == "length" and "}" not in content:
+        raise ValueError(f"reply cut off at max_tokens={OPENAI_MAX_TOKENS}")
     # Models often wrap JSON in a code fence or add text around it.
     start, end = content.find("{"), content.rfind("}")
     if start == -1 or end < start:

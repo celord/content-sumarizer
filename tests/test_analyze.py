@@ -94,7 +94,7 @@ def test_openai_compatible_provider_parses_fenced_json():
     http, seen = openai_http("Here you go:\n```json\n" + json.dumps(VALID) + "\n```")
     result = analyze(
         TRANSCRIPT, META, "English",
-        model="meta/llama-3.3-70b-instruct", base_url="https://integrate.api.nvidia.com/v1/",
+        model="nvidia/nemotron-3.5-lightning-30b-a3b", base_url="https://integrate.api.nvidia.com/v1/",
         api_key="k", http=http,
     )
     assert result.tags == ["sleep", "focus", "habits"]
@@ -102,7 +102,7 @@ def test_openai_compatible_provider_parses_fenced_json():
     assert str(request.url) == "https://integrate.api.nvidia.com/v1/chat/completions"
     assert request.headers["authorization"] == "Bearer k"
     body = json.loads(request.content)
-    assert body["model"] == "meta/llama-3.3-70b-instruct"
+    assert body["model"] == "nvidia/nemotron-3.5-lightning-30b-a3b"
     assert "JSON" in body["messages"][0]["content"]
 
 
@@ -119,3 +119,16 @@ def test_openai_compatible_provider_http_error_raises_analysis_error():
     http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(429)))
     with pytest.raises(AnalysisError, match="request failed"):
         analyze(TRANSCRIPT, META, "English", model="m", base_url="https://x/v1", api_key="k", http=http)
+
+
+@pytest.mark.skipif(
+    not (os.environ.get("LLM_BASE_URL") and os.environ.get("LLM_API_KEY")),
+    reason="needs LLM_BASE_URL and LLM_API_KEY",
+)
+def test_live_analysis_openai_compatible():
+    result = analyze(
+        TRANSCRIPT, META, "English",
+        base_url=os.environ["LLM_BASE_URL"], api_key=os.environ["LLM_API_KEY"],
+        model=os.environ.get("LLM_MODEL") or "nvidia/nemotron-3.5-lightning-30b-a3b",
+    )
+    assert result.summary_sentence and 3 <= len(result.tags) <= 7
