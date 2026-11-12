@@ -3,7 +3,9 @@ name = "content-sumarizer"
 version = "0.1.0"
 description = "Telegram bot that turns TikTok links into Obsidian notes"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pyyaml>=6.0.3",
+]
 
 [dependency-groups]
 dev = ["pytest>=8"]
