@@ -1,17 +1,22 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+FROM python:3.12-slim
 
-# Set the working directory in the container
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PYTHONUNBUFFERED=1
+ENV PATH="/opt/venv/bin:$PATH"
+
 WORKDIR /usr/src/app
 
-# Copy the requirements file into the container at /usr/src/app
-COPY requirements.txt ./
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev --no-install-project
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY app/ ./app/
 
-# Copy the rest of the application's code into the container
-COPY app/ /usr/src/app/app
-
-# Specify the command to run on container start
 ENTRYPOINT ["python", "-m", "app.main"]
