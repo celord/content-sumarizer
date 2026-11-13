@@ -76,7 +76,7 @@ async def _on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not urls:
         return
     try:
-        await message.set_reaction("⏳")
+        await message.set_reaction("👀")  # must be one of Telegram's allowed reaction emoji
     except Exception:
         logger.warning("could not react to message", exc_info=True)
     queue: asyncio.Queue = context.application.bot_data[QUEUE_KEY]
