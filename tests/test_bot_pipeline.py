@@ -68,7 +68,7 @@ async def test_allowlist_and_enqueue():
 
     update, context, message = make_update(1, f"hi {URL}")
     await bot._on_message(update, context)
-    message.set_reaction.assert_awaited_once_with("⏳")
+    message.set_reaction.assert_awaited_once_with("👀")
     assert context.application.bot_data["queue"].get_nowait() == (message, URL)
 
 
