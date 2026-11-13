@@ -36,7 +36,9 @@ def process(url: str, settings: Settings) -> Result:
     if meta.url != url and (existing := find_existing(vault, meta.url)):
         return _duplicate(existing)
 
-    transcript = get_transcript(url, settings.groq_api_key)
+    transcript = get_transcript(
+        url, settings.groq_api_key, base_url=settings.stt_base_url, model=settings.stt_model
+    )
     analysis = analyze(
         transcript,
         meta,

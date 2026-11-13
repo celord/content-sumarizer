@@ -1,4 +1,8 @@
-"""Transcript: TikTok subtitles when present, otherwise Groq Whisper."""
+"""Transcript: TikTok subtitles when present, otherwise Whisper speech-to-text.
+
+Whisper runs behind any OpenAI-compatible /audio/transcriptions API: Groq by
+default, or a local server (speaches) when stt_base_url is set.
+"""
 
 import re
 import subprocess
@@ -10,7 +14,7 @@ import httpx
 from app.models import Transcript
 from app.tiktok import TikTokError, extract_info
 
-GROQ_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_MODEL = "whisper-large-v3-turbo"
 GROQ_MAX_BYTES = 25 * 1024 * 1024
 MIN_SPEECH_CHARS = 10
@@ -25,9 +29,17 @@ class TranscriptionFailed(TikTokError):
     """Audio download, conversion or speech-to-text failed."""
 
 
-def get_transcript(url: str, groq_api_key: str) -> Transcript:
+def get_transcript(
+    url: str,
+    api_key: str | None,
+    *,
+    base_url: str | None = None,
+    model: str | None = None,
+) -> Transcript:
     info = extract_info(url)
-    transcript = _subtitle_transcript(info) or _whisper_transcript(url, groq_api_key)
+    transcript = _subtitle_transcript(info) or _whisper_transcript(
+        url, api_key, base_url or GROQ_BASE_URL, model or GROQ_MODEL
+    )
     if len(transcript.text) < MIN_SPEECH_CHARS:
         raise NoSpeech("No speech found")
     return transcript
@@ -72,12 +84,12 @@ def vtt_to_text(vtt: str) -> str:
     return " ".join(lines)
 
 
-def _whisper_transcript(url: str, groq_api_key: str) -> Transcript:
+def _whisper_transcript(url: str, api_key: str | None, base_url: str, model: str) -> Transcript:
     with tempfile.TemporaryDirectory() as tmp:
         audio = _download_audio(url, Path(tmp))
         if audio.stat().st_size > GROQ_MAX_BYTES:
             raise TranscriptionFailed("Compressed audio exceeds the 25 MB Whisper limit")
-        return _groq_transcribe(audio, groq_api_key)
+        return _whisper_request(audio, api_key, base_url, model)
 
 
 def _download_audio(url: str, tmp: Path) -> Path:
@@ -106,18 +118,18 @@ def _download_audio(url: str, tmp: Path) -> Path:
     return out
 
 
-def _groq_transcribe(audio: Path, api_key: str) -> Transcript:
+def _whisper_request(audio: Path, api_key: str | None, base_url: str, model: str) -> Transcript:
     try:
         with audio.open("rb") as fh:
             response = httpx.post(
-                GROQ_URL,
-                headers={"Authorization": f"Bearer {api_key}"},
-                data={"model": GROQ_MODEL, "response_format": "verbose_json"},
+                base_url.rstrip("/") + "/audio/transcriptions",
+                headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+                data={"model": model, "response_format": "verbose_json"},
                 files={"file": (audio.name, fh, "audio/mpeg")},
                 timeout=HTTP_TIMEOUT,
             )
         response.raise_for_status()
         body = response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        raise TranscriptionFailed(f"Groq transcription failed: {exc}") from exc
+        raise TranscriptionFailed(f"Speech-to-text failed: {exc}") from exc
     return Transcript(text=(body.get("text") or "").strip(), language=body.get("language"))

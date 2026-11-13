@@ -91,8 +91,10 @@ async def _start_worker(app: Application) -> None:
 
 
 async def _stop_worker(app: Application) -> None:
-    task: asyncio.Task = app.bot_data[WORKER_KEY]
-    task.cancel()
+    # Startup can fail (e.g. a bad token) before the worker exists.
+    task: asyncio.Task | None = app.bot_data.get(WORKER_KEY)
+    if task is not None:
+        task.cancel()
 
 
 async def _worker(queue: asyncio.Queue, settings: Settings) -> None:

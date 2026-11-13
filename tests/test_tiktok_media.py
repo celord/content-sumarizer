@@ -99,7 +99,7 @@ def test_whisper_fallback():
     ):
         transcript = get_transcript(URL, "key")
     assert transcript.text == "spoken words here"
-    whisper.assert_called_once_with(URL, "key")
+    whisper.assert_called_once_with(URL, "key", transcribe.GROQ_BASE_URL, transcribe.GROQ_MODEL)
 
 
 def test_groq_request_and_cleanup(tmp_path):
@@ -117,10 +117,11 @@ def test_groq_request_and_cleanup(tmp_path):
         patch("app.transcribe._download_audio", side_effect=fake_download),
         patch("app.transcribe.httpx.post", return_value=response) as post,
     ):
-        transcript = transcribe._whisper_transcript(URL, "secret")
+        transcript = transcribe._whisper_transcript(URL, "secret", transcribe.GROQ_BASE_URL, transcribe.GROQ_MODEL)
     assert transcript == Transcript("hola mundo", "spanish")
     assert post.call_args.kwargs["data"]["model"] == "whisper-large-v3-turbo"
     assert post.call_args.kwargs["headers"]["Authorization"] == "Bearer secret"
+    assert post.call_args.args[0] == "https://api.groq.com/openai/v1/audio/transcriptions"
     assert not seen["dir"].exists()
 
 
@@ -132,7 +133,23 @@ def test_groq_http_error():
         patch("app.transcribe.httpx.post", return_value=response),
         pytest.raises(transcribe.TranscriptionFailed),
     ):
-        transcribe._whisper_transcript(URL, "k")
+        transcribe._whisper_transcript(URL, "k", transcribe.GROQ_BASE_URL, transcribe.GROQ_MODEL)
+
+
+def test_local_whisper_server_without_key():
+    response = MagicMock()
+    response.json.return_value = {"text": "local words", "language": "en"}
+    with (
+        patch("app.transcribe._download_audio", side_effect=lambda u, t: _touch(t)),
+        patch("app.transcribe.httpx.post", return_value=response) as post,
+    ):
+        transcript = transcribe._whisper_transcript(
+            URL, None, "http://whisper:8000/v1/", "deepdml/faster-whisper-large-v3-turbo-ct2"
+        )
+    assert transcript.text == "local words"
+    assert post.call_args.args[0] == "http://whisper:8000/v1/audio/transcriptions"
+    assert post.call_args.kwargs["headers"] == {}
+    assert post.call_args.kwargs["data"]["model"] == "deepdml/faster-whisper-large-v3-turbo-ct2"
 
 
 def _touch(tmp):

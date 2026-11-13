@@ -113,9 +113,22 @@ def _call_anthropic(client: anthropic.Anthropic, model: str, system: str, user: 
 
 OPENAI_MAX_TOKENS = 8192
 
+# An example object, not a JSON Schema: small models copy a schema's
+# {"type": ..., "properties": ...} wrapper instead of filling it in.
 JSON_INSTRUCTION = (
-    "Reply with only a JSON object, no other text, matching this JSON schema:\n"
-    + json.dumps(TOOL["input_schema"])
+    "Reply with only a JSON object, no other text, with exactly these keys:\n"
+    + json.dumps(
+        {
+            "summary_sentence": "<one sentence>",
+            "summary": "<one paragraph>",
+            "key_ideas": ["<idea>", "..."],
+            "insights": ["<insight>", "..."],
+            "takeaways": ["<takeaway>", "..."],
+            "quotes": ["<verbatim line from the transcript, or leave the list empty>"],
+            "tags": ["<tag>", "... 3 to 7 tags"],
+        },
+        indent=2,
+    )
 )
 
 

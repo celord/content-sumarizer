@@ -122,13 +122,13 @@ def test_openai_compatible_provider_http_error_raises_analysis_error():
 
 
 @pytest.mark.skipif(
-    not (os.environ.get("LLM_BASE_URL") and os.environ.get("LLM_API_KEY")),
-    reason="needs LLM_BASE_URL and LLM_API_KEY",
+    not os.environ.get("LLM_BASE_URL"),
+    reason="needs LLM_BASE_URL (LLM_API_KEY too for hosted APIs)",
 )
 def test_live_analysis_openai_compatible():
     result = analyze(
         TRANSCRIPT, META, "English",
-        base_url=os.environ["LLM_BASE_URL"], api_key=os.environ["LLM_API_KEY"],
+        base_url=os.environ["LLM_BASE_URL"], api_key=os.environ.get("LLM_API_KEY") or None,
         model=os.environ.get("LLM_MODEL") or "nvidia/nemotron-3.5-lightning-30b-a3b",
     )
     assert result.summary_sentence and 3 <= len(result.tags) <= 7

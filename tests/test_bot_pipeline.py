@@ -144,3 +144,11 @@ def test_process_propagates_stage_errors_and_writes_nothing(tmp_path):
     with pytest.raises(NoSpeech):
         run_process(tmp_path, get_transcript=MagicMock(side_effect=NoSpeech("x")))
     assert not list(tmp_path.rglob("*.md"))
+
+
+async def test_stop_worker_before_start_does_not_raise():
+    from types import SimpleNamespace
+
+    from app.bot import _stop_worker
+
+    await _stop_worker(SimpleNamespace(bot_data={}))  # startup failed before the worker existed

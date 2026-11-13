@@ -103,11 +103,18 @@ def test_error_message_does_not_leak_secret_values():
     assert "sk-ant-secret" not in str(exc.value)
 
 
-def test_openai_compatible_provider_needs_llm_api_key_not_anthropic():
+def test_openai_compatible_provider_does_not_need_anthropic_key():
     env = {**BASE_ENV, "ANTHROPIC_API_KEY": "", "LLM_BASE_URL": "https://openrouter.ai/api/v1"}
-    with pytest.raises(ConfigError, match="LLM_API_KEY"):
-        load_settings(env)
+    assert load_settings(env).llm_api_key is None  # local servers take no key
     settings = load_settings({**env, "LLM_API_KEY": "or-key"})
     assert settings.llm_base_url == "https://openrouter.ai/api/v1"
     assert settings.llm_api_key == "or-key"
     assert settings.anthropic_api_key is None
+
+
+def test_local_stt_does_not_need_groq_key():
+    env = {**BASE_ENV, "GROQ_API_KEY": "", "STT_BASE_URL": "http://whisper:8000/v1"}
+    settings = load_settings({**env, "STT_MODEL": "deepdml/faster-whisper-large-v3-turbo-ct2"})
+    assert settings.groq_api_key is None
+    assert settings.stt_base_url == "http://whisper:8000/v1"
+    assert settings.stt_model == "deepdml/faster-whisper-large-v3-turbo-ct2"

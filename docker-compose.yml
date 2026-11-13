@@ -6,3 +6,32 @@ services:
     volumes:
       - ${VAULT_PATH}:${VAULT_PATH}
     restart: unless-stopped
+
+  # Local models on the GPU. Start them with: docker compose --profile local up -d
+  # API-only setups (Anthropic, OpenRouter, NVIDIA NIM, Groq) leave the profile off.
+
+  # Analysis LLM, OpenAI-compatible at http://ollama:11434/v1
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [local]
+    environment:
+      # Default context (4096) is too short for a 15-minute transcript plus the prompt.
+      OLLAMA_CONTEXT_LENGTH: "16384"
+      OLLAMA_KEEP_ALIVE: "30m"
+    volumes:
+      - ollama:/root/.ollama
+    gpus: all
+    restart: unless-stopped
+
+  # Whisper speech-to-text, OpenAI-compatible at http://whisper:8000/v1
+  whisper:
+    image: ghcr.io/speaches-ai/speaches:latest-cuda
+    profiles: [local]
+    volumes:
+      - hf-cache:/home/ubuntu/.cache/huggingface/hub
+    gpus: all
+    restart: unless-stopped
+
+volumes:
+  ollama:
+  hf-cache:
