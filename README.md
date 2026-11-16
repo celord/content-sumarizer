@@ -37,6 +37,17 @@ Telegram bot that turns TikTok links into Obsidian notes. See `GLOSSARY.md` for 
 Send a TikTok link to the bot from an allowed chat. It reacts with 👀, then replies with the title, tags and
 Note path; the Note appears in `${VAULT_PATH}/${NOTE_SUBFOLDER}`.
 
+## Keep yt-dlp current
+
+TikTok changes often, and old `yt-dlp` versions stop downloading ("Download failed" replies).
+Dependabot opens a PR for each new `yt-dlp` release. After merging it, update the server:
+
+```sh
+git pull && docker compose up -d --build
+```
+
+To update by hand: `uv lock --upgrade-package yt-dlp`, commit `uv.lock`, then rebuild.
+
 ## Develop
 
 ```sh
