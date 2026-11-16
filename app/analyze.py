@@ -155,6 +155,10 @@ def _call_openai_compatible(
             },
         )
         response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise AnalysisError(
+            f"LLM request failed: {exc.response.status_code} {exc.response.text[:300]}"
+        ) from exc
     except httpx.HTTPError as exc:
         raise AnalysisError(f"LLM request failed: {exc}") from exc
     try:
