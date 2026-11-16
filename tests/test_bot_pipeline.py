@@ -152,3 +152,16 @@ async def test_stop_worker_before_start_does_not_raise():
     from app.bot import _stop_worker
 
     await _stop_worker(SimpleNamespace(bot_data={}))  # startup failed before the worker existed
+
+
+def test_process_logs_each_stage(tmp_path, caplog):
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="app.pipeline"):
+        run_process(tmp_path)
+    stages = [r.getMessage().split(": ", 1)[1].split(" (")[0] for r in caplog.records]
+    assert stages == [
+        "fetching metadata", "metadata", "transcribing", "transcript",
+        "analyzing", "analysis", "note written",
+    ]
+    assert all(r.getMessage().startswith(URL) for r in caplog.records)

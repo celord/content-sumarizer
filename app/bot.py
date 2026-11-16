@@ -71,15 +71,18 @@ async def _on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if message is None or not message.text:
         return
     if message.chat_id not in settings.allowed_chat_ids:
+        logger.warning("ignored message from chat %s (not in ALLOWED_CHAT_IDS)", message.chat_id)
         return
     urls = extract_tiktok_urls(message.text)
     if not urls:
         return
+    queue: asyncio.Queue = context.application.bot_data[QUEUE_KEY]
+    logger.info("received %d link(s) from chat %s, queue length %d: %s",
+                len(urls), message.chat_id, queue.qsize(), " ".join(urls))
     try:
         await message.set_reaction("👀")  # must be one of Telegram's allowed reaction emoji
     except Exception:
         logger.warning("could not react to message", exc_info=True)
-    queue: asyncio.Queue = context.application.bot_data[QUEUE_KEY]
     for url in urls:
         queue.put_nowait((message, url))
 
@@ -102,8 +105,10 @@ async def _worker(queue: asyncio.Queue, settings: Settings) -> None:
     while True:
         message, url = await queue.get()
         try:
+            logger.info("%s: started", url)
             result = await asyncio.to_thread(pipeline.process, url, settings)
             reply = format_result(result, settings.vault_path)
+            logger.info("%s: done", url)
         except Exception as exc:
             logger.exception("processing %s failed", url)
             reply = error_message(exc)
