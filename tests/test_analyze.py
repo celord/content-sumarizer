@@ -132,3 +132,13 @@ def test_live_analysis_openai_compatible():
         model=os.environ.get("LLM_MODEL") or "nvidia/nemotron-3.5-lightning-30b-a3b",
     )
     assert result.summary_sentence and 3 <= len(result.tags) <= 7
+
+
+def test_openai_compatible_error_includes_body():
+    import httpx
+
+    http = httpx.Client(
+        transport=httpx.MockTransport(lambda r: httpx.Response(404, text="model not found for account"))
+    )
+    with pytest.raises(AnalysisError, match="404 model not found for account"):
+        analyze(TRANSCRIPT, META, "English", model="m", base_url="https://x/v1", api_key="k", http=http)

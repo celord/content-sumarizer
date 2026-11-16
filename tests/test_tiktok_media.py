@@ -177,3 +177,14 @@ def test_live():
     transcript = get_transcript(url, os.environ["GROQ_API_KEY"])
     assert meta.title
     assert transcript.text
+
+
+def test_whisper_error_includes_body():
+    request = httpx.Request("POST", "https://api.groq.com/openai/v1/audio/transcriptions")
+    response = httpx.Response(401, text="Invalid API Key", request=request)
+    with (
+        patch("app.transcribe._download_audio", side_effect=lambda u, t: _touch(t)),
+        patch("app.transcribe.httpx.post", return_value=response),
+        pytest.raises(transcribe.TranscriptionFailed, match="401 Invalid API Key"),
+    ):
+        transcribe._whisper_transcript(URL, "k", transcribe.GROQ_BASE_URL, transcribe.GROQ_MODEL)

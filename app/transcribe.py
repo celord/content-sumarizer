@@ -131,5 +131,9 @@ def _whisper_request(audio: Path, api_key: str | None, base_url: str, model: str
         response.raise_for_status()
         body = response.json()
     except (httpx.HTTPError, ValueError) as exc:
+        if isinstance(exc, httpx.HTTPStatusError):
+            raise TranscriptionFailed(
+                f"Speech-to-text failed: {exc.response.status_code} {exc.response.text[:300]}"
+            ) from exc
         raise TranscriptionFailed(f"Speech-to-text failed: {exc}") from exc
     return Transcript(text=(body.get("text") or "").strip(), language=body.get("language"))
