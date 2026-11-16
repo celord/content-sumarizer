@@ -104,6 +104,7 @@ def test_openai_compatible_provider_parses_fenced_json():
     body = json.loads(request.content)
     assert body["model"] == "nvidia/nemotron-3.5-lightning-30b-a3b"
     assert "JSON" in body["messages"][0]["content"]
+    assert body["chat_template_kwargs"] == {"enable_thinking": False}
 
 
 def test_openai_compatible_provider_retries_on_non_json_then_fails():

@@ -152,6 +152,11 @@ def _call_openai_compatible(
                     {"role": "system", "content": system + "\n\n" + JSON_INSTRUCTION},
                     {"role": "user", "content": user},
                 ],
+                # Turn off reasoning on servers that support it (NVIDIA NIM, vLLM).
+                # Reasoning models otherwise spend the whole token budget thinking
+                # on long transcripts; extraction does not need it. Other servers
+                # ignore the field.
+                "chat_template_kwargs": {"enable_thinking": False},
             },
         )
         response.raise_for_status()
