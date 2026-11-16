@@ -54,6 +54,14 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     if missing:
         raise ConfigError("Missing required environment variables: " + ", ".join(missing))
 
+    llm_model = get("LLM_MODEL") or DEFAULT_LLM_MODEL
+    if get("LLM_BASE_URL") and llm_model.startswith("claude-"):
+        raise ConfigError(
+            f"LLM_MODEL={llm_model} is an Anthropic model, but LLM_BASE_URL is set. "
+            "Set LLM_MODEL to a model id from that provider, e.g. "
+            "nvidia/nemotron-3.5-lightning-30b-a3b (NVIDIA NIM) or qwen3:8b (Ollama)."
+        )
+
     return Settings(
         telegram_bot_token=get("TELEGRAM_BOT_TOKEN"),
         allowed_chat_ids=_parse_chat_ids(get("ALLOWED_CHAT_IDS")),
@@ -64,7 +72,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         llm_api_key=get("LLM_API_KEY"),
         stt_base_url=get("STT_BASE_URL"),
         stt_model=get("STT_MODEL"),
-        llm_model=get("LLM_MODEL") or DEFAULT_LLM_MODEL,
+        llm_model=llm_model,
         note_subfolder=get("NOTE_SUBFOLDER") or DEFAULT_NOTE_SUBFOLDER,
         note_language=get("NOTE_LANGUAGE") or DEFAULT_NOTE_LANGUAGE,
         max_duration_seconds=_parse_positive_int(

@@ -104,7 +104,12 @@ def test_error_message_does_not_leak_secret_values():
 
 
 def test_openai_compatible_provider_does_not_need_anthropic_key():
-    env = {**BASE_ENV, "ANTHROPIC_API_KEY": "", "LLM_BASE_URL": "https://openrouter.ai/api/v1"}
+    env = {
+        **BASE_ENV,
+        "ANTHROPIC_API_KEY": "",
+        "LLM_BASE_URL": "https://openrouter.ai/api/v1",
+        "LLM_MODEL": "qwen3:8b",
+    }
     assert load_settings(env).llm_api_key is None  # local servers take no key
     settings = load_settings({**env, "LLM_API_KEY": "or-key"})
     assert settings.llm_base_url == "https://openrouter.ai/api/v1"
@@ -118,3 +123,13 @@ def test_local_stt_does_not_need_groq_key():
     assert settings.groq_api_key is None
     assert settings.stt_base_url == "http://whisper:8000/v1"
     assert settings.stt_model == "deepdml/faster-whisper-large-v3-turbo-ct2"
+
+
+def test_base_url_with_default_model_rejected():
+    with pytest.raises(ConfigError, match="LLM_MODEL"):
+        load_settings({**BASE_ENV, "LLM_BASE_URL": "https://x/v1"})
+
+
+def test_base_url_with_local_model_ok():
+    env = {**BASE_ENV, "LLM_BASE_URL": "http://ollama:11434/v1", "LLM_MODEL": "qwen3:8b"}
+    assert load_settings(env).llm_model == "qwen3:8b"
