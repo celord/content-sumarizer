@@ -4,6 +4,7 @@ Whisper runs behind any OpenAI-compatible /audio/transcriptions API: Groq by
 default, or a local server (speaches) when stt_base_url is set.
 """
 
+import logging
 import re
 import subprocess
 import tempfile
@@ -13,6 +14,8 @@ import httpx
 
 from app.models import Transcript
 from app.tiktok import TikTokError, extract_info
+
+logger = logging.getLogger(__name__)
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_MODEL = "whisper-large-v3-turbo"
@@ -37,9 +40,12 @@ def get_transcript(
     model: str | None = None,
 ) -> Transcript:
     info = extract_info(url)
-    transcript = _subtitle_transcript(info) or _whisper_transcript(
-        url, api_key, base_url or GROQ_BASE_URL, model or GROQ_MODEL
-    )
+    transcript = _subtitle_transcript(info)
+    if transcript:
+        logger.info("%s: using TikTok subtitles", url)
+    else:
+        logger.info("%s: no subtitles, running speech-to-text", url)
+        transcript = _whisper_transcript(url, api_key, base_url or GROQ_BASE_URL, model or GROQ_MODEL)
     if len(transcript.text) < MIN_SPEECH_CHARS:
         raise NoSpeech("No speech found")
     return transcript
