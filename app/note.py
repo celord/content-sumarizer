@@ -8,7 +8,8 @@ from urllib.parse import urlsplit
 
 import yaml
 
-from app.models import Analysis, Metadata, Platform, SourceText
+from app.models import TWITTER, Analysis, Metadata, Platform, SourceText
+from app.twitter import tweet_id
 
 MAX_SLUG = 60
 
@@ -29,6 +30,9 @@ def slugify(title: str) -> str:
 
 
 def normalise_url(url: str) -> str:
+    """Duplicate-check key: host and path; a tweet is keyed by its ID alone."""
+    if TWITTER.url_pattern.match(url.strip()):
+        return f"x.com/status/{tweet_id(url)}"
     parts = urlsplit(url.strip())
     return f"{parts.netloc.lower()}{parts.path.rstrip('/')}"
 
@@ -49,6 +53,8 @@ def render_note(
         "tags": normalise_tags(analysis.tags, meta.platform),
         "summary": analysis.summary_sentence,
     }
+    if meta.duration is None:
+        del frontmatter["duration"]
     yaml_text = yaml.safe_dump(
         frontmatter, sort_keys=False, allow_unicode=True, width=float("inf")
     )

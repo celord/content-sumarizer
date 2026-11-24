@@ -21,7 +21,16 @@ TIKTOK = Platform(
     source_heading="Transcript",
     url_pattern=re.compile(r"https?://(?:[\w-]+\.)?tiktok\.com/", re.IGNORECASE),
 )
-PLATFORMS = (TIKTOK,)
+TWITTER = Platform(
+    slug="twitter",
+    folder="Twitter",
+    note_type="tweet-note",
+    source_heading="Tweet",
+    url_pattern=re.compile(
+        r"https?://(?:www\.|mobile\.)?(?:twitter|x)\.com/\w+/status/\d+", re.IGNORECASE
+    ),
+)
+PLATFORMS = (TIKTOK, TWITTER)
 
 
 def platform_for(url: str) -> Platform | None:

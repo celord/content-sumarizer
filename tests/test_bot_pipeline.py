@@ -32,6 +32,20 @@ def test_extract_urls():
     assert bot.extract_links("no link, nottiktok.com/x") == []
 
 
+def test_extract_x_links():
+    text = (
+        "https://x.com/a/status/1 https://twitter.com/b/status/2?s=20, "
+        "https://mobile.twitter.com/c/status/3 https://t.co/abc https://x.com/a "
+        "and https://www.tiktok.com/@a/video/1"
+    )
+    assert bot.extract_links(text) == [
+        "https://x.com/a/status/1",
+        "https://twitter.com/b/status/2?s=20",
+        "https://mobile.twitter.com/c/status/3",
+        "https://www.tiktok.com/@a/video/1",
+    ]
+
+
 @pytest.mark.parametrize(
     "exc, fragment",
     [
