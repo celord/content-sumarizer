@@ -1,4 +1,4 @@
-"""Transcript: TikTok subtitles when present, otherwise Whisper speech-to-text.
+"""Transcript: video subtitles when present, otherwise Whisper speech-to-text.
 
 Whisper runs behind any OpenAI-compatible /audio/transcriptions API: Groq by
 default, or a local server (speaches) when stt_base_url is set.
@@ -12,8 +12,9 @@ from pathlib import Path
 
 import httpx
 
-from app.models import Transcript
-from app.tiktok import TikTokError, extract_info
+from app.errors import FetchError
+from app.models import SourceText
+from app.video import extract_info
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +25,11 @@ MIN_SPEECH_CHARS = 10
 HTTP_TIMEOUT = 120
 
 
-class NoSpeech(TikTokError):
+class NoSpeech(FetchError):
     """The video has no usable speech (photo carousel, music only)."""
 
 
-class TranscriptionFailed(TikTokError):
+class TranscriptionFailed(FetchError):
     """Audio download, conversion or speech-to-text failed."""
 
 
@@ -38,11 +39,11 @@ def get_transcript(
     *,
     base_url: str | None = None,
     model: str | None = None,
-) -> Transcript:
+) -> SourceText:
     info = extract_info(url)
     transcript = _subtitle_transcript(info)
     if transcript:
-        logger.info("%s: using TikTok subtitles", url)
+        logger.info("%s: using subtitles", url)
     else:
         logger.info("%s: no subtitles, running speech-to-text", url)
         transcript = _whisper_transcript(url, api_key, base_url or GROQ_BASE_URL, model or GROQ_MODEL)
@@ -51,7 +52,7 @@ def get_transcript(
     return transcript
 
 
-def _subtitle_transcript(info: dict) -> Transcript | None:
+def _subtitle_transcript(info: dict) -> SourceText | None:
     tracks = info.get("subtitles") or {}
     for lang, formats in tracks.items():
         vtt = next((f for f in formats if f.get("ext") == "vtt" and f.get("url")), None)
@@ -64,7 +65,7 @@ def _subtitle_transcript(info: dict) -> Transcript | None:
             continue
         text = vtt_to_text(response.text)
         if text:
-            return Transcript(text=text, language=lang)
+            return SourceText(text=text, language=lang)
     return None
 
 
@@ -90,7 +91,7 @@ def vtt_to_text(vtt: str) -> str:
     return " ".join(lines)
 
 
-def _whisper_transcript(url: str, api_key: str | None, base_url: str, model: str) -> Transcript:
+def _whisper_transcript(url: str, api_key: str | None, base_url: str, model: str) -> SourceText:
     with tempfile.TemporaryDirectory() as tmp:
         audio = _download_audio(url, Path(tmp))
         if audio.stat().st_size > GROQ_MAX_BYTES:
@@ -106,7 +107,7 @@ def _download_audio(url: str, tmp: Path) -> Path:
             format="bestaudio/best",
             outtmpl=str(tmp / "source.%(ext)s"),
         )
-    except TikTokError as exc:
+    except FetchError as exc:
         raise TranscriptionFailed(f"Audio download failed: {exc}") from exc
     if not info:
         raise TranscriptionFailed("Audio download failed")
@@ -124,7 +125,7 @@ def _download_audio(url: str, tmp: Path) -> Path:
     return out
 
 
-def _whisper_request(audio: Path, api_key: str | None, base_url: str, model: str) -> Transcript:
+def _whisper_request(audio: Path, api_key: str | None, base_url: str, model: str) -> SourceText:
     try:
         with audio.open("rb") as fh:
             response = httpx.post(
@@ -142,4 +143,4 @@ def _whisper_request(audio: Path, api_key: str | None, base_url: str, model: str
                 f"Speech-to-text failed: {exc.response.status_code} {exc.response.text[:300]}"
             ) from exc
         raise TranscriptionFailed(f"Speech-to-text failed: {exc}") from exc
-    return Transcript(text=(body.get("text") or "").strip(), language=body.get("language"))
+    return SourceText(text=(body.get("text") or "").strip(), language=body.get("language"))

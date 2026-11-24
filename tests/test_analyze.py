@@ -6,10 +6,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.analyze import AnalysisError, analyze
-from app.models import Analysis, Transcript, VideoMetadata
+from app.models import TIKTOK, Analysis, Metadata, SourceText
 
-META = VideoMetadata("https://www.tiktok.com/@a/video/1", "Title", "a", date(2026, 1, 2), 30)
-TRANSCRIPT = Transcript("Sleep before midnight. It resets your focus for the day.", "en")
+META = Metadata("https://www.tiktok.com/@a/video/1", "Title", "a", date(2026, 1, 2), TIKTOK, 30)
+TRANSCRIPT = SourceText("Sleep before midnight. It resets your focus for the day.", "en")
 
 VALID = {
     "summary_sentence": "Sleep before midnight to reset focus.",

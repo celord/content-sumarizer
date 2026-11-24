@@ -6,12 +6,13 @@ import httpx
 import pytest
 from yt_dlp.utils import DownloadError
 
-from app import tiktok, transcribe
-from app.models import Transcript
-from app.tiktok import VideoPrivate, VideoTooLong, VideoUnavailable, fetch_metadata
+from app import transcribe, video
+from app.models import TIKTOK, SourceText
+from app.errors import ContentPrivate, ContentUnavailable
+from app.video import VideoTooLong, fetch_metadata
 from app.transcribe import NoSpeech, get_transcript, vtt_to_text
 
-URL = "https://www.tiktok.com/@someone/video/123"
+URL = "https://www.video.com/@someone/video/123"
 
 INFO = {
     "webpage_url": URL,
@@ -44,12 +45,12 @@ def fake_ydl(info=None, error=None):
         ydl.extract_info.side_effect = error
     else:
         ydl.extract_info.return_value = info
-    return patch("app.tiktok.YoutubeDL", return_value=ydl)
+    return patch("app.video.YoutubeDL", return_value=ydl)
 
 
 def test_fetch_metadata():
     with fake_ydl(INFO):
-        meta = fetch_metadata(URL, 900)
+        meta = fetch_metadata(URL, TIKTOK, 900)
     assert meta.title == "A title"
     assert meta.author == "someone"
     assert meta.published == date(2026, 1, 2)
@@ -59,17 +60,17 @@ def test_fetch_metadata():
 
 def test_too_long():
     with fake_ydl({**INFO, "duration": 901}), pytest.raises(VideoTooLong):
-        fetch_metadata(URL, 900)
+        fetch_metadata(URL, TIKTOK, 900)
 
 
 def test_private_video():
-    with fake_ydl(error=DownloadError("This video is private")), pytest.raises(VideoPrivate):
-        fetch_metadata(URL, 900)
+    with fake_ydl(error=DownloadError("This video is private")), pytest.raises(ContentPrivate):
+        fetch_metadata(URL, TIKTOK, 900)
 
 
 def test_unavailable_video():
-    with fake_ydl(error=DownloadError("HTTP 404")), pytest.raises(VideoUnavailable):
-        fetch_metadata(URL, 900)
+    with fake_ydl(error=DownloadError("HTTP 404")), pytest.raises(ContentUnavailable):
+        fetch_metadata(URL, TIKTOK, 900)
 
 
 def test_vtt_to_text_strips_timing_and_repeats():
@@ -85,7 +86,7 @@ def test_subtitles_path_skips_whisper():
         patch("app.transcribe._whisper_transcript") as whisper,
     ):
         transcript = get_transcript(URL, "key")
-    assert transcript == Transcript("Hello there this is a test", "eng-US")
+    assert transcript == SourceText("Hello there this is a test", "eng-US")
     whisper.assert_not_called()
 
 
@@ -94,7 +95,7 @@ def test_whisper_fallback():
         fake_ydl({"subtitles": {}}),
         patch(
             "app.transcribe._whisper_transcript",
-            return_value=Transcript("spoken words here", "english"),
+            return_value=SourceText("spoken words here", "english"),
         ) as whisper,
     ):
         transcript = get_transcript(URL, "key")
@@ -118,7 +119,7 @@ def test_groq_request_and_cleanup(tmp_path):
         patch("app.transcribe.httpx.post", return_value=response) as post,
     ):
         transcript = transcribe._whisper_transcript(URL, "secret", transcribe.GROQ_BASE_URL, transcribe.GROQ_MODEL)
-    assert transcript == Transcript("hola mundo", "spanish")
+    assert transcript == SourceText("hola mundo", "spanish")
     assert post.call_args.kwargs["data"]["model"] == "whisper-large-v3-turbo"
     assert post.call_args.kwargs["headers"]["Authorization"] == "Bearer secret"
     assert post.call_args.args[0] == "https://api.groq.com/openai/v1/audio/transcriptions"
@@ -161,7 +162,7 @@ def _touch(tmp):
 def test_no_speech():
     with (
         fake_ydl({"subtitles": {}}),
-        patch("app.transcribe._whisper_transcript", return_value=Transcript(" ", None)),
+        patch("app.transcribe._whisper_transcript", return_value=SourceText(" ", None)),
         pytest.raises(NoSpeech),
     ):
         get_transcript(URL, "key")
@@ -173,7 +174,7 @@ def test_no_speech():
 )
 def test_live():
     url = os.environ["TIKTOK_TEST_URL"]
-    meta = fetch_metadata(url, 900)
+    meta = fetch_metadata(url, TIKTOK, 900)
     transcript = get_transcript(url, os.environ["GROQ_API_KEY"])
     assert meta.title
     assert transcript.text

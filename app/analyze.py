@@ -1,4 +1,4 @@
-"""Analysis: turn a Transcript into an Analysis.
+"""Analysis: turn a Source Text into an Analysis.
 
 Two providers: Anthropic (tool use, the default) and any OpenAI-compatible
 chat completions API such as OpenRouter or NVIDIA NIM (JSON in the reply text,
@@ -13,7 +13,7 @@ import anthropic
 import httpx
 
 from app.analyze_prompt import SYSTEM_PROMPT, USER_TEMPLATE
-from app.models import Analysis, Transcript, VideoMetadata
+from app.models import Analysis, Metadata, SourceText
 
 DEFAULT_LLM_MODEL = "claude-haiku-5-5"
 MAX_ATTEMPTS = 2  # first try plus one retry on malformed output
@@ -22,7 +22,7 @@ MIN_TAGS, MAX_TAGS = 3, 7
 _STR_LIST = {"type": "array", "items": {"type": "string"}}
 TOOL = {
     "name": "record_analysis",
-    "description": "Record the analysis of the video transcript.",
+    "description": "Record the analysis of the source text.",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -52,8 +52,8 @@ class AnalysisError(Exception):
 
 
 def analyze(
-    transcript: Transcript,
-    metadata: VideoMetadata,
+    source: SourceText,
+    metadata: Metadata,
     language: str,
     *,
     client: anthropic.Anthropic | None = None,
@@ -62,17 +62,20 @@ def analyze(
     api_key: str | None = None,
     http: httpx.Client | None = None,
 ) -> Analysis:
-    """Analyze a Transcript. Retries once on malformed output, then raises AnalysisError.
+    """Analyze a Source Text. Retries once on malformed output, then raises AnalysisError.
 
     With base_url set, calls that OpenAI-compatible API instead of Anthropic.
     """
     model = model or os.environ.get("LLM_MODEL") or DEFAULT_LLM_MODEL
     system = SYSTEM_PROMPT.format(language=language)
+    duration = f"Duration: {metadata.duration} seconds\n" if metadata.duration else ""
     user = USER_TEMPLATE.format(
+        platform=metadata.platform.folder,
         title=metadata.title,
         author=metadata.author,
-        duration=metadata.duration,
-        transcript=transcript.text,
+        duration=duration,
+        source_heading=metadata.platform.source_heading,
+        text=source.text,
     )
 
     if base_url:
@@ -90,7 +93,7 @@ def analyze(
     problem = "no response"
     for _ in range(MAX_ATTEMPTS):
         try:
-            return _parse(call(), transcript.text)
+            return _parse(call(), source.text)
         except ValueError as exc:
             problem = str(exc)
     raise AnalysisError(f"Malformed analysis after {MAX_ATTEMPTS} attempts: {problem}")
@@ -124,7 +127,7 @@ JSON_INSTRUCTION = (
             "key_ideas": ["<idea>", "..."],
             "insights": ["<insight>", "..."],
             "takeaways": ["<takeaway>", "..."],
-            "quotes": ["<verbatim line from the transcript, or leave the list empty>"],
+            "quotes": ["<verbatim line from the source text, or leave the list empty>"],
             "tags": ["<tag>", "... 3 to 7 tags"],
         },
         indent=2,
@@ -183,7 +186,7 @@ def _call_openai_compatible(
         raise ValueError(f"reply is not valid JSON: {exc}") from None
 
 
-def _parse(data: object, transcript_text: str) -> Analysis:
+def _parse(data: object, source_text: str) -> Analysis:
     if not isinstance(data, dict):
         raise ValueError("tool input is not an object")
 
@@ -206,7 +209,7 @@ def _parse(data: object, transcript_text: str) -> Analysis:
     if not MIN_TAGS <= len(tags) <= MAX_TAGS:
         raise ValueError(f"tags must hold {MIN_TAGS} to {MAX_TAGS} entries, got {len(tags)}")
 
-    haystack = _squash(transcript_text)
+    haystack = _squash(source_text)
     quotes = [q for q in items("quotes", required=False) if _squash(q) in haystack]
 
     return Analysis(

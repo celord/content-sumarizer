@@ -11,33 +11,35 @@ from telegram.ext import Application, ContextTypes, MessageHandler, filters
 from app import pipeline
 from app.analyze import AnalysisError
 from app.config import Settings
-from app.tiktok import VideoPrivate, VideoTooLong, VideoUnavailable
+from app.errors import ContentPrivate, ContentUnavailable
+from app.models import platform_for
 from app.transcribe import NoSpeech, TranscriptionFailed
+from app.video import VideoTooLong
 
 logger = logging.getLogger(__name__)
 
-TIKTOK_URL = re.compile(
-    r"https?://(?:[\w-]+\.)?tiktok\.com/[^\s]+", re.IGNORECASE
-)
+URL = re.compile(r"https?://\S+", re.IGNORECASE)
 QUEUE_KEY = "queue"
 WORKER_KEY = "worker"
 
 
-def extract_tiktok_urls(text: str) -> list[str]:
-    """TikTok URLs (incl. vm.tiktok.com short links) in order, without duplicates."""
-    urls = (m.group().rstrip(".,;:!?)]}>\"'") for m in TIKTOK_URL.finditer(text))
-    return list(dict.fromkeys(urls))
+def extract_links(text: str) -> list[str]:
+    """Links of any supported Platform, in order, without duplicates."""
+    urls = (m.group().rstrip(".,;:!?)]}>\"'") for m in URL.finditer(text))
+    return list(dict.fromkeys(u for u in urls if platform_for(u)))
 
 
 def error_message(exc: Exception) -> str:
     """One short human message per error type."""
-    if isinstance(exc, VideoPrivate):
-        return "This video is private."
+    if isinstance(exc, ContentPrivate):
+        return "This content is private."
     if isinstance(exc, VideoTooLong):
         return f"Video is too long ({exc.duration}s, limit {exc.limit}s)."
     if isinstance(exc, NoSpeech):
         return "No speech found, skipped."
-    if isinstance(exc, (TranscriptionFailed, VideoUnavailable)):
+    if isinstance(exc, ContentUnavailable):
+        return "This content is unavailable (removed or unreachable)."
+    if isinstance(exc, TranscriptionFailed):
         return "Download failed."
     if isinstance(exc, AnalysisError):
         return "Model error, try again later."
@@ -73,7 +75,7 @@ async def _on_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if message.chat_id not in settings.allowed_chat_ids:
         logger.warning("ignored message from chat %s (not in ALLOWED_CHAT_IDS)", message.chat_id)
         return
-    urls = extract_tiktok_urls(message.text)
+    urls = extract_links(message.text)
     if not urls:
         return
     queue: asyncio.Queue = context.application.bot_data[QUEUE_KEY]

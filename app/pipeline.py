@@ -11,13 +11,14 @@ import anthropic
 from app.analyze import analyze
 from app.config import Settings
 from app.note import find_existing, normalise_tags, write_note
-from app.tiktok import fetch_metadata
+from app.models import platform_for
+from app.video import fetch_metadata
 from app.transcribe import get_transcript
 
 logger = logging.getLogger(__name__)
 
-# Failures surface as the typed errors of the stages: TikTokError subclasses
-# (VideoPrivate, VideoUnavailable, VideoTooLong, NoSpeech, TranscriptionFailed)
+# Failures surface as the typed errors of the stages: FetchError subclasses
+# (ContentPrivate, ContentUnavailable, VideoTooLong, NoSpeech, TranscriptionFailed)
 # and AnalysisError.
 
 
@@ -37,13 +38,16 @@ def process(url: str, settings: Settings) -> Result:
         logger.info("%s: %s (%.1fs)%s", url, name, time.monotonic() - started,
                     f" {detail}" if detail else "")
 
+    platform = platform_for(url)
+    if platform is None:
+        raise ValueError(f"Unsupported Link: {url}")
     vault = Path(settings.vault_path)
     if existing := find_existing(vault, url):
         stage("duplicate", existing.name)
         return _duplicate(existing)
 
     stage("fetching metadata")
-    meta = fetch_metadata(url, settings.max_duration_seconds)
+    meta = fetch_metadata(url, platform, settings.max_duration_seconds)
     stage("metadata", f"title={meta.title!r} duration={meta.duration}s")
     # Short links only resolve to their canonical URL after the metadata fetch.
     if meta.url != url and (existing := find_existing(vault, meta.url)):
@@ -67,10 +71,10 @@ def process(url: str, settings: Settings) -> Result:
     )
     stage("analysis", f"tags={len(analysis.tags)}")
     path = write_note(
-        vault / settings.note_subfolder, meta, analysis, transcript, date.today()
+        vault / settings.note_folder / platform.folder, meta, analysis, transcript, date.today()
     )
     stage("note written", str(path))
-    return Result(path=path, title=meta.title, tags=normalise_tags(analysis.tags))
+    return Result(path=path, title=meta.title, tags=normalise_tags(analysis.tags, platform))
 
 def _duplicate(path: Path) -> Result:
     return Result(path=path, title=path.stem, tags=[], duplicate=True)

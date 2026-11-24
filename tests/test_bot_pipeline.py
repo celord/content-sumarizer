@@ -8,13 +8,14 @@ import pytest
 from app import bot, pipeline
 from app.analyze import AnalysisError
 from app.config import Settings
-from app.models import Analysis, Transcript, VideoMetadata
-from app.tiktok import VideoPrivate, VideoTooLong, VideoUnavailable
+from app.models import TIKTOK, Analysis, Metadata, SourceText
+from app.errors import ContentPrivate, ContentUnavailable
+from app.video import VideoTooLong
 from app.transcribe import NoSpeech, TranscriptionFailed
 
 URL = "https://www.tiktok.com/@someone/video/123"
-META = VideoMetadata(url=URL, title="A title", author="someone", published=date(2026, 1, 2), duration=42)
-TRANSCRIPT = Transcript(text="hello there this is a test", language="en")
+META = Metadata(url=URL, title="A title", author="someone", published=date(2026, 1, 2), platform=TIKTOK, duration=42)
+TRANSCRIPT = SourceText(text="hello there this is a test", language="en")
 ANALYSIS = Analysis("One.", "Sum.", ["k"], ["i"], ["t"], ["Alpha", "beta", "gamma"])
 
 
@@ -24,20 +25,20 @@ def settings(tmp_path: Path) -> Settings:
 
 def test_extract_urls():
     text = "look https://vm.tiktok.com/ZMabc/, and (https://www.tiktok.com/@a/video/1). also https://example.com/x"
-    assert bot.extract_tiktok_urls(text) == [
+    assert bot.extract_links(text) == [
         "https://vm.tiktok.com/ZMabc/",
         "https://www.tiktok.com/@a/video/1",
     ]
-    assert bot.extract_tiktok_urls("no link, nottiktok.com/x") == []
+    assert bot.extract_links("no link, nottiktok.com/x") == []
 
 
 @pytest.mark.parametrize(
     "exc, fragment",
     [
-        (VideoPrivate("x"), "private"),
+        (ContentPrivate("x"), "private"),
         (VideoTooLong(1000, 900), "too long"),
         (NoSpeech("x"), "No speech"),
-        (VideoUnavailable("x"), "Download failed"),
+        (ContentUnavailable("x"), "unavailable"),
         (TranscriptionFailed("x"), "Download failed"),
         (AnalysisError("x"), "Model error"),
         (RuntimeError("x"), "went wrong"),
@@ -79,7 +80,7 @@ async def test_worker_replies_for_result_and_error(tmp_path):
     ok.reply_text = AsyncMock()
     bad.reply_text = AsyncMock()
     result = pipeline.Result(tmp_path / "Inbox" / "n.md", "T", ["tiktok", "x"])
-    with patch("app.bot.pipeline.process", side_effect=[result, VideoPrivate("p")]):
+    with patch("app.bot.pipeline.process", side_effect=[result, ContentPrivate("p")]):
         task = asyncio.create_task(bot._worker(queue, s))
         queue.put_nowait((ok, "u1"))
         queue.put_nowait((bad, "u2"))

@@ -1,16 +1,16 @@
 """Prompt for the Analysis step. Edit the rules here."""
 
 SYSTEM_PROMPT = """\
-You turn the transcript of a short video into study notes. Call the \
+You turn the source text of a piece of content (a video transcript or a post) into study notes. Call the \
 record_analysis tool exactly once with your result.
 
 Write every field in {language}.
 
 Content rules:
 - The summary sentence is one sentence. The summary is one short paragraph.
-- Insights must be specific to this video. Skip anything that would fit any video on the topic.
-- Takeaways are concrete actions the viewer can take.
-- Quotes are optional. Include only lines copied verbatim from the transcript, and only strong ones. Use an empty list if none qualify.
+- Insights must be specific to this content. Skip anything that would fit any content on the topic.
+- Takeaways are concrete actions the reader can take.
+- Quotes are optional. Include only lines copied verbatim from the source text, and only strong ones. Use an empty list if none qualify.
 - Give 3 to 7 tags: lowercase, kebab-case, no leading #.
 
 Writing rules:
@@ -22,10 +22,10 @@ Writing rules:
 """
 
 USER_TEMPLATE = """\
+Platform: {platform}
 Title: {title}
 Author: {author}
-Duration: {duration} seconds
-
-Transcript:
-{transcript}
+{duration}
+{source_heading}:
+{text}
 """

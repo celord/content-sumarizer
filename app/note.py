@@ -8,14 +8,14 @@ from urllib.parse import urlsplit
 
 import yaml
 
-from app.models import Analysis, Transcript, VideoMetadata
+from app.models import Analysis, Metadata, Platform, SourceText
 
 MAX_SLUG = 60
 
 
-def normalise_tags(tags: list[str]) -> list[str]:
-    """Lowercase kebab-case, deduplicated, `tiktok` always first."""
-    result = ["tiktok"]
+def normalise_tags(tags: list[str], platform: Platform) -> list[str]:
+    """Lowercase kebab-case, deduplicated, the Platform tag always first."""
+    result = [platform.slug]
     for tag in tags:
         kebab = re.sub(r"[^a-z0-9]+", "-", _ascii(tag).lower()).strip("-")
         if kebab and kebab not in result:
@@ -34,7 +34,7 @@ def normalise_url(url: str) -> str:
 
 
 def render_note(
-    meta: VideoMetadata, analysis: Analysis, transcript: Transcript, created: date
+    meta: Metadata, analysis: Analysis, source: SourceText, created: date
 ) -> str:
     frontmatter = {
         "title": meta.title,
@@ -43,10 +43,10 @@ def render_note(
         "published": meta.published.isoformat() if meta.published else None,
         "created": created.isoformat(),
         "duration": meta.duration,
-        "platform": "tiktok",
-        "type": "video-note",
-        "language": transcript.language,
-        "tags": normalise_tags(analysis.tags),
+        "platform": meta.platform.slug,
+        "type": meta.platform.note_type,
+        "language": source.language,
+        "tags": normalise_tags(analysis.tags, meta.platform),
         "summary": analysis.summary_sentence,
     }
     yaml_text = yaml.safe_dump(
@@ -66,8 +66,9 @@ def render_note(
         sections.append(
             "## Quotes\n\n" + "\n\n".join(f"> {q}" for q in analysis.quotes)
         )
-    quoted = "\n".join(f"> {line}" for line in transcript.text.splitlines())
-    sections.append(f"## Transcript\n\n> [!note]- Transcript\n{quoted}")
+    heading = meta.platform.source_heading
+    quoted = "\n".join(f"> {line}" for line in source.text.splitlines())
+    sections.append(f"## {heading}\n\n> [!note]- {heading}\n{quoted}")
     return f"---\n{yaml_text}---\n\n" + "\n\n".join(sections) + "\n"
 
 
@@ -83,9 +84,9 @@ def find_existing(vault_dir: Path, url: str) -> Path | None:
 
 def write_note(
     directory: Path,
-    meta: VideoMetadata,
+    meta: Metadata,
     analysis: Analysis,
-    transcript: Transcript,
+    source: SourceText,
     processed: date,
 ) -> Path:
     """Write the Note into `directory` (created if missing); return its path."""
@@ -96,7 +97,7 @@ def write_note(
     while path.exists():
         path = directory / f"{base} ({n}).md"
         n += 1
-    path.write_text(render_note(meta, analysis, transcript, processed), encoding="utf-8")
+    path.write_text(render_note(meta, analysis, source, processed), encoding="utf-8")
     return path
 
 

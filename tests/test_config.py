@@ -20,7 +20,7 @@ def test_defaults_apply_when_optional_vars_unset():
     assert settings.groq_api_key == "gsk-test"
     assert settings.vault_path == "/vault"
     assert settings.llm_model == "claude-haiku-5-5"
-    assert settings.note_subfolder == "Inbox/TikTok"
+    assert settings.note_folder == "Inbox"
     assert settings.note_language == "English"
     assert settings.max_duration_seconds == 900
 
@@ -29,7 +29,7 @@ def test_optional_vars_override_defaults():
     env = {
         **BASE_ENV,
         "LLM_MODEL": "claude-sonnet-5-5",
-        "NOTE_SUBFOLDER": "Clips",
+        "NOTE_FOLDER": "Clips",
         "NOTE_LANGUAGE": "Spanish",
         "MAX_DURATION_SECONDS": "300",
     }
@@ -37,7 +37,7 @@ def test_optional_vars_override_defaults():
     settings = load_settings(env)
 
     assert settings.llm_model == "claude-sonnet-5-5"
-    assert settings.note_subfolder == "Clips"
+    assert settings.note_folder == "Clips"
     assert settings.note_language == "Spanish"
     assert settings.max_duration_seconds == 300
 
@@ -133,3 +133,13 @@ def test_base_url_with_default_model_rejected():
 def test_base_url_with_local_model_ok():
     env = {**BASE_ENV, "LLM_BASE_URL": "http://ollama:11434/v1", "LLM_MODEL": "qwen3:8b"}
     assert load_settings(env).llm_model == "qwen3:8b"
+
+
+def test_legacy_note_subfolder_maps_to_its_parent():
+    assert load_settings({**BASE_ENV, "NOTE_SUBFOLDER": "Notes/TikTok"}).note_folder == "Notes"
+    assert load_settings({**BASE_ENV, "NOTE_SUBFOLDER": "Clips"}).note_folder == ""
+
+
+def test_note_folder_wins_over_legacy_subfolder():
+    env = {**BASE_ENV, "NOTE_FOLDER": "Media", "NOTE_SUBFOLDER": "Notes/TikTok"}
+    assert load_settings(env).note_folder == "Media"

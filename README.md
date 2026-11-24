@@ -35,7 +35,7 @@ Telegram bot that turns TikTok links into Obsidian notes. See `GLOSSARY.md` for 
    You can mix the two, for example local Whisper with NVIDIA NIM for Analysis.
 
 Send a TikTok link to the bot from an allowed chat. It reacts with 👀, then replies with the title, tags and
-Note path; the Note appears in `${VAULT_PATH}/${NOTE_SUBFOLDER}`.
+Note path; the Note appears in `${VAULT_PATH}/${NOTE_FOLDER}/TikTok`.
 
 ## Keep yt-dlp current
 

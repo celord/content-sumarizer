@@ -1,9 +1,10 @@
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
 DEFAULT_LLM_MODEL = "claude-haiku-5-5"
-DEFAULT_NOTE_SUBFOLDER = "Inbox/TikTok"
+DEFAULT_NOTE_FOLDER = "Inbox"
 DEFAULT_NOTE_LANGUAGE = "English"
 DEFAULT_MAX_DURATION_SECONDS = 900
 
@@ -30,7 +31,7 @@ class Settings:
     stt_base_url: str | None = None
     stt_model: str | None = None
     llm_model: str = DEFAULT_LLM_MODEL
-    note_subfolder: str = DEFAULT_NOTE_SUBFOLDER
+    note_folder: str = DEFAULT_NOTE_FOLDER  # each Platform gets a subfolder
     note_language: str = DEFAULT_NOTE_LANGUAGE
     max_duration_seconds: int = DEFAULT_MAX_DURATION_SECONDS
 
@@ -73,12 +74,22 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         stt_base_url=get("STT_BASE_URL"),
         stt_model=get("STT_MODEL"),
         llm_model=llm_model,
-        note_subfolder=get("NOTE_SUBFOLDER") or DEFAULT_NOTE_SUBFOLDER,
+        note_folder=_note_folder(get("NOTE_FOLDER"), get("NOTE_SUBFOLDER")),
         note_language=get("NOTE_LANGUAGE") or DEFAULT_NOTE_LANGUAGE,
         max_duration_seconds=_parse_positive_int(
             "MAX_DURATION_SECONDS", get("MAX_DURATION_SECONDS"), DEFAULT_MAX_DURATION_SECONDS
         ),
     )
+
+
+def _note_folder(folder: str | None, legacy_subfolder: str | None) -> str:
+    """NOTE_FOLDER, else the parent of the old NOTE_SUBFOLDER (e.g. Inbox/TikTok -> Inbox)."""
+    if folder:
+        return folder
+    if legacy_subfolder:
+        parent = PurePosixPath(legacy_subfolder.rstrip("/")).parent
+        return "" if str(parent) == "." else str(parent)
+    return DEFAULT_NOTE_FOLDER
 
 
 def _parse_chat_ids(raw: str) -> frozenset[int]:
