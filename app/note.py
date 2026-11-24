@@ -65,9 +65,11 @@ def render_note(
     sections = [
         f"## Summary\n\n{analysis.summary}",
         f"## Key ideas\n\n{bullets(analysis.key_ideas)}",
-        f"## Insights\n\n{bullets(analysis.insights)}",
-        f"## Actionable takeaways\n\n{bullets(analysis.takeaways)}",
     ]
+    if analysis.insights:
+        sections.append(f"## Insights\n\n{bullets(analysis.insights)}")
+    if analysis.takeaways:
+        sections.append(f"## Actionable takeaways\n\n{bullets(analysis.takeaways)}")
     if analysis.quotes:
         sections.append(
             "## Quotes\n\n" + "\n\n".join(f"> {q}" for q in analysis.quotes)

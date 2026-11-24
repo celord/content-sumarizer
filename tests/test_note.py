@@ -86,3 +86,9 @@ def test_find_existing_normalises_url(tmp_path):
     (tmp_path / "bad.md").write_text("---\n: [\n---\n")
     assert find_existing(tmp_path, "https://www.tiktok.com/@a/video/1/?utm=x#f") == path
     assert find_existing(tmp_path, "https://www.tiktok.com/@a/video/2") is None
+
+
+def test_empty_sections_are_omitted():
+    text = render_note(meta(), analysis(insights=[], takeaways=[]), TR, DAY)
+    assert "## Insights" not in text and "## Actionable takeaways" not in text
+    assert "## Key ideas" in text

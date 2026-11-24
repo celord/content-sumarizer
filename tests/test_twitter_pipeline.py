@@ -10,7 +10,9 @@ import yaml
 
 from app import pipeline
 from app.config import Settings
+from app.errors import ContentPrivate, ContentUnavailable
 from app.models import Analysis
+from app.twitter import TweetFetchFailed
 
 ANALYSIS = Analysis("One.", "Sum.", ["k"], ["i"], ["t"], ["Alpha", "beta", "gamma"])
 TWEET = {
@@ -106,3 +108,42 @@ def test_short_tweet_title_not_truncated(tmp_path):
     del body["tweet"]["quote"]
     result, _, _ = run(tmp_path, "https://x.com/SomeOne/status/1800000000000000001", body)
     assert result.title == "@SomeOne: gm friends"
+
+
+def failing(tmp_path, handler):
+    real_client = httpx.Client
+    with (
+        patch("app.twitter.httpx.Client",
+              side_effect=lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw)),
+        patch("app.pipeline.analyze") as analyze,
+    ):
+        try:
+            pipeline.process("https://x.com/SomeOne/status/1800000000000000001", settings(tmp_path))
+        finally:
+            analyze.assert_not_called()
+            assert not list(tmp_path.rglob("*.md"))
+
+
+def respond(status, body):
+    return lambda request: httpx.Response(status, json=body)
+
+
+def test_deleted_tweet_is_unavailable(tmp_path):
+    with pytest.raises(ContentUnavailable):
+        failing(tmp_path, respond(404, {"code": 404, "message": "NOT_FOUND", "tweet": None}))
+
+
+def test_protected_tweet_is_private(tmp_path):
+    with pytest.raises(ContentPrivate):
+        failing(tmp_path, respond(401, {"code": 401, "message": "PRIVATE_TWEET", "tweet": None}))
+
+
+@pytest.mark.parametrize("handler", [
+    respond(500, {"code": 500, "message": "API_FAIL"}),
+    respond(200, {"code": 200, "message": "OK"}),  # no tweet
+    lambda request: httpx.Response(200, text="<html>oops</html>"),
+    lambda request: (_ for _ in ()).throw(httpx.ConnectTimeout("slow", request=request)),
+])
+def test_fetch_failures_raise_tweet_fetch_failed(tmp_path, handler):
+    with pytest.raises(TweetFetchFailed):
+        failing(tmp_path, handler)

@@ -216,8 +216,8 @@ def _parse(data: object, source_text: str) -> Analysis:
         summary_sentence=text("summary_sentence"),
         summary=text("summary"),
         key_ideas=items("key_ideas"),
-        insights=items("insights"),
-        takeaways=items("takeaways"),
+        insights=items("insights", required=False),
+        takeaways=items("takeaways", required=False),
         tags=tags,
         quotes=quotes,
     )

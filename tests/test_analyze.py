@@ -143,3 +143,16 @@ def test_openai_compatible_error_includes_body():
     )
     with pytest.raises(AnalysisError, match="404 model not found for account"):
         analyze(TRANSCRIPT, META, "English", model="m", base_url="https://x/v1", api_key="k", http=http)
+
+
+def test_prompt_scales_note_to_input_length():
+    client = client_with(reply(VALID))
+    analyze(TRANSCRIPT, META, "English", client=client, model="m")
+    system = client.messages.create.call_args.kwargs["system"]
+    assert "Scale the notes to the length of the source text" in system
+
+
+def test_short_source_may_leave_insights_and_takeaways_empty():
+    client = client_with(reply({**VALID, "insights": [], "takeaways": []}))
+    result = analyze(TRANSCRIPT, META, "English", client=client, model="m")
+    assert result.insights == [] and result.takeaways == []

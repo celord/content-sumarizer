@@ -14,6 +14,7 @@ from app.config import Settings
 from app.errors import ContentPrivate, ContentUnavailable
 from app.models import platform_for
 from app.transcribe import NoSpeech, TranscriptionFailed
+from app.twitter import TweetFetchFailed
 from app.video import VideoTooLong
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,8 @@ def error_message(exc: Exception) -> str:
         return "No speech found, skipped."
     if isinstance(exc, ContentUnavailable):
         return "This content is unavailable (removed or unreachable)."
+    if isinstance(exc, TweetFetchFailed):
+        return "Couldn't fetch tweet, try later."
     if isinstance(exc, TranscriptionFailed):
         return "Download failed."
     if isinstance(exc, AnalysisError):

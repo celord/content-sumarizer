@@ -10,6 +10,7 @@ Content rules:
 - The summary sentence is one sentence. The summary is one short paragraph.
 - Insights must be specific to this content. Skip anything that would fit any content on the topic.
 - Takeaways are concrete actions the reader can take.
+- Scale the notes to the length of the source text. A one-line post gets one or two key ideas and short fields. Never pad: leave insights and takeaways as empty lists when the source gives none.
 - Quotes are optional. Include only lines copied verbatim from the source text, and only strong ones. Use an empty list if none qualify.
 - Give 3 to 7 tags: lowercase, kebab-case, no leading #.
 
