@@ -10,6 +10,8 @@ from app.models import TWITTER, Metadata, SourceText
 
 API_BASE = "https://api.fxtwitter.com"
 HTTP_TIMEOUT = 20
+# FxTwitter answers 403 to the default python-httpx User-Agent.
+USER_AGENT = "content-summarizer-bot/1.0"
 TITLE_CHARS = 60
 STATUS_ID = re.compile(r"/status/(\d+)")
 
@@ -35,7 +37,9 @@ def tweet_id(url: str) -> str:
 def fetch_tweet(url: str) -> tuple[Metadata, SourceText]:
     """Metadata (canonical x.com URL) and Source Text (tweet plus any quoted tweet)."""
     try:
-        with httpx.Client(timeout=HTTP_TIMEOUT, follow_redirects=True) as http:
+        with httpx.Client(
+            timeout=HTTP_TIMEOUT, follow_redirects=True, headers={"User-Agent": USER_AGENT}
+        ) as http:
             response = http.get(f"{API_BASE}/status/{tweet_id(url)}")
     except httpx.HTTPError as exc:
         raise TweetFetchFailed(f"FxTwitter request failed: {exc}") from exc
