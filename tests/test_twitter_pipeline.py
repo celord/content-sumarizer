@@ -168,3 +168,19 @@ def test_no_language_codes_dropped(tmp_path):
 def test_fetch_failures_raise_tweet_fetch_failed(tmp_path, handler):
     with pytest.raises(TweetFetchFailed):
         failing(tmp_path, handler)
+
+
+def test_fxtwitter_rejects_default_httpx_user_agent(tmp_path):
+    # FxTwitter answers 403 to the stock python-httpx User-Agent, which read as "private".
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.headers["user-agent"].startswith("python-httpx"):
+            return httpx.Response(403)
+        return httpx.Response(200, json=TWEET)
+
+    real_client = httpx.Client
+    with (
+        patch("app.twitter.httpx.Client",
+              side_effect=lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw)),
+        patch("app.pipeline.analyze", MagicMock(return_value=ANALYSIS)),
+    ):
+        pipeline.process("https://x.com/jack/status/20", settings(tmp_path))
