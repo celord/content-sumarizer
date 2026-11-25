@@ -2,14 +2,14 @@ from datetime import date
 
 import yaml
 
-from app.models import Analysis, Transcript, VideoMetadata
+from app.models import TIKTOK, Analysis, Metadata, SourceText
 from app.note import find_existing, normalise_tags, render_note, slugify, write_note
 
 DAY = date(2026, 11, 12)
 
 
 def meta(title="Hello", url="https://www.tiktok.com/@a/video/1"):
-    return VideoMetadata(url=url, title=title, author="a", published=date(2026, 1, 2), duration=30)
+    return Metadata(url=url, title=title, author="a", published=date(2026, 1, 2), platform=TIKTOK, duration=30)
 
 
 def analysis(**kw):
@@ -25,7 +25,7 @@ def analysis(**kw):
     return Analysis(**{**base, **kw})
 
 
-TR = Transcript(text="line one\n\nline three", language="en")
+TR = SourceText(text="line one\n\nline three", language="en")
 
 
 def frontmatter(text):
@@ -42,7 +42,7 @@ def test_yaml_escaping_roundtrip():
 
 
 def test_tag_normalisation():
-    assert normalise_tags(["Cooking Tips", "cooking-tips", "TikTok", " AI_tools! ", ""]) == [
+    assert normalise_tags(["Cooking Tips", "cooking-tips", "TikTok", " AI_tools! ", ""], TIKTOK) == [
         "tiktok", "cooking-tips", "ai-tools"
     ]
 
@@ -86,3 +86,9 @@ def test_find_existing_normalises_url(tmp_path):
     (tmp_path / "bad.md").write_text("---\n: [\n---\n")
     assert find_existing(tmp_path, "https://www.tiktok.com/@a/video/1/?utm=x#f") == path
     assert find_existing(tmp_path, "https://www.tiktok.com/@a/video/2") is None
+
+
+def test_empty_sections_are_omitted():
+    text = render_note(meta(), analysis(insights=[], takeaways=[]), TR, DAY)
+    assert "## Insights" not in text and "## Actionable takeaways" not in text
+    assert "## Key ideas" in text

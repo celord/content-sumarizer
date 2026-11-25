@@ -1,6 +1,6 @@
 # content-sumarizer
 
-Telegram bot that turns TikTok links into Obsidian notes. See `GLOSSARY.md` for vocabulary.
+Telegram bot that turns TikTok and X (Twitter) links into Obsidian notes. See `GLOSSARY.md` for vocabulary.
 
 ## Run it
 
@@ -34,8 +34,9 @@ Telegram bot that turns TikTok links into Obsidian notes. See `GLOSSARY.md` for 
 
    You can mix the two, for example local Whisper with NVIDIA NIM for Analysis.
 
-Send a TikTok link to the bot from an allowed chat. It reacts with 👀, then replies with the title, tags and
-Note path; the Note appears in `${VAULT_PATH}/${NOTE_SUBFOLDER}`.
+Send a TikTok or X (Twitter) link to the bot from an allowed chat. X links are text tweets: the bot reads
+the tweet (and any quoted tweet) through the public FxTwitter API and ignores attached media. It reacts with 👀, then replies with the title, tags and
+Note path; the Note appears in `${VAULT_PATH}/${NOTE_FOLDER}/TikTok` or `.../Twitter`.
 
 ## Keep yt-dlp current
 
