@@ -14,6 +14,13 @@ TITLE_CHARS = 60
 STATUS_ID = re.compile(r"/status/(\d+)")
 
 
+NO_LANGUAGE = {"und", "zxx", "qme", "qht", "qst"}  # X codes for "no linguistic content"
+
+
+class NoTweetText(FetchError):
+    """The tweet has no text to analyse (media only)."""
+
+
 class TweetFetchFailed(FetchError):
     """FxTwitter is down, timed out or returned something unexpected."""
 
@@ -36,6 +43,8 @@ def fetch_tweet(url: str) -> tuple[Metadata, SourceText]:
         raise ContentUnavailable("Tweet not found or deleted")
     if response.status_code in (401, 403):
         raise ContentPrivate("Tweet is from a protected account")
+    if 400 <= response.status_code < 500 and response.status_code != 429:
+        raise ContentUnavailable(f"FxTwitter refused the Link: {response.status_code}")
     try:
         response.raise_for_status()
         tweet = response.json()["tweet"]
@@ -48,10 +57,15 @@ def fetch_tweet(url: str) -> tuple[Metadata, SourceText]:
 
     text = tweet.get("text") or ""
     source = text
+    quote_text = ""
     if quote := tweet.get("quote"):
         quoted = (quote.get("author") or {}).get("screen_name") or "unknown"
-        source += f"\n\nQuoting @{quoted}:\n{quote.get('text') or ''}"
+        quote_text = quote.get("text") or ""
+        source += f"\n\nQuoting @{quoted}:\n{quote_text}"
+    if not (text.strip() or quote_text.strip()):
+        raise NoTweetText("Tweet has no text")
     timestamp = tweet.get("created_timestamp")
+    lang = tweet.get("lang")
     meta = Metadata(
         url=f"https://x.com/{handle}/status/{status_id}",
         title=f"@{handle}: {_shorten(text)}",
@@ -59,7 +73,7 @@ def fetch_tweet(url: str) -> tuple[Metadata, SourceText]:
         published=datetime.fromtimestamp(timestamp, UTC).date() if timestamp else None,
         platform=TWITTER,
     )
-    return meta, SourceText(text=source, language=tweet.get("lang"))
+    return meta, SourceText(text=source, language=None if lang in NO_LANGUAGE else lang)
 
 
 def _shorten(text: str) -> str:

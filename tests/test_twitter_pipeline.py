@@ -12,7 +12,7 @@ from app import pipeline
 from app.config import Settings
 from app.errors import ContentPrivate, ContentUnavailable
 from app.models import Analysis
-from app.twitter import TweetFetchFailed
+from app.twitter import NoTweetText, TweetFetchFailed
 
 ANALYSIS = Analysis("One.", "Sum.", ["k"], ["i"], ["t"], ["Alpha", "beta", "gamma"])
 TWEET = {
@@ -138,7 +138,28 @@ def test_protected_tweet_is_private(tmp_path):
         failing(tmp_path, respond(401, {"code": 401, "message": "PRIVATE_TWEET", "tweet": None}))
 
 
+def test_media_only_tweet_is_skipped(tmp_path):
+    body = json.loads(json.dumps(TWEET))
+    body["tweet"]["text"] = ""
+    del body["tweet"]["quote"]
+    with pytest.raises(NoTweetText):
+        failing(tmp_path, respond(200, body))
+
+
+def test_bad_request_is_unavailable(tmp_path):
+    with pytest.raises(ContentUnavailable):
+        failing(tmp_path, respond(400, {"code": 400, "message": "BAD_REQUEST"}))
+
+
+def test_no_language_codes_dropped(tmp_path):
+    body = json.loads(json.dumps(TWEET))
+    body["tweet"]["lang"] = "zxx"
+    result, _, _ = run(tmp_path, "https://x.com/SomeOne/status/1800000000000000001", body)
+    assert frontmatter(result.path)["language"] is None
+
+
 @pytest.mark.parametrize("handler", [
+    respond(429, {"code": 429}),
     respond(500, {"code": 500, "message": "API_FAIL"}),
     respond(200, {"code": 200, "message": "OK"}),  # no tweet
     lambda request: httpx.Response(200, text="<html>oops</html>"),

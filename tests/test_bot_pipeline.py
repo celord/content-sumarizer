@@ -12,7 +12,7 @@ from app.models import TIKTOK, Analysis, Metadata, SourceText
 from app.errors import ContentPrivate, ContentUnavailable
 from app.video import VideoTooLong
 from app.transcribe import NoSpeech, TranscriptionFailed
-from app.twitter import TweetFetchFailed
+from app.twitter import NoTweetText, TweetFetchFailed
 
 URL = "https://www.tiktok.com/@someone/video/123"
 META = Metadata(url=URL, title="A title", author="someone", published=date(2026, 1, 2), platform=TIKTOK, duration=42)
@@ -36,13 +36,14 @@ def test_extract_urls():
 def test_extract_x_links():
     text = (
         "https://x.com/a/status/1 https://twitter.com/b/status/2?s=20, "
-        "https://mobile.twitter.com/c/status/3 https://t.co/abc https://x.com/a "
+        "https://mobile.twitter.com/c/status/3 https://x.com/i/web/status/4 https://t.co/abc https://x.com/a "
         "and https://www.tiktok.com/@a/video/1"
     )
     assert bot.extract_links(text) == [
         "https://x.com/a/status/1",
         "https://twitter.com/b/status/2?s=20",
         "https://mobile.twitter.com/c/status/3",
+        "https://x.com/i/web/status/4",
         "https://www.tiktok.com/@a/video/1",
     ]
 
@@ -55,6 +56,7 @@ def test_extract_x_links():
         (NoSpeech("x"), "No speech"),
         (ContentUnavailable("x"), "unavailable"),
         (TranscriptionFailed("x"), "Download failed"),
+        (NoTweetText("x"), "no text"),
         (TweetFetchFailed("x"), "Couldn't fetch tweet, try later"),
         (AnalysisError("x"), "Model error"),
         (RuntimeError("x"), "went wrong"),
